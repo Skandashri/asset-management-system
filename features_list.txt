@@ -1,0 +1,96 @@
+PROJECT NAME:
+AssetTrack Pro
+
+--------------------------------------------
+1. Understanding of Client Requirements
+--------------------------------------------
+
+The client wants a software system that allows the company to track company-owned assets and monitor which asset is assigned to which employee.
+
+The system should:
+- Maintain records of all company assets.
+- Maintain employee records.
+- Track asset assignment history.
+- Help the company know the current status and location of each asset.
+
+The goal is to prevent asset misplacement, improve accountability, and maintain proper records.
+
+--------------------------------------------
+2. Creative Freedoms Taken
+--------------------------------------------
+
+- Project Name: AssetTrack Pro
+- Scope: Web-based Asset Management System
+- Technology Scope (planned for future): Backend API + Database
+- Added features like:
+  - Asset condition tracking
+  - Assignment history logs
+  - Admin role
+  - Asset return tracking
+
+--------------------------------------------
+3. Assumptions Made
+--------------------------------------------
+
+- The company has multiple employees.
+- Each asset has a unique ID.
+- An asset can only be assigned to one employee at a time.
+- Employees can have multiple assets.
+- Only admins can assign or unassign assets.
+- The system will be used internally by the company.
+- Data security and authentication will be required.
+
+--------------------------------------------
+4. Features List
+--------------------------------------------
+
+1. Employee Management
+   - Add new employees
+   - View employee details
+   - Update employee details
+   - Remove employee records
+
+2. Asset Management
+   - Add new assets
+   - Update asset details
+   - Remove assets
+   - View all assets
+
+3. Asset Assignment
+   - Assign asset to employee
+   - Unassign/Return asset
+   - View current asset holder
+
+4. Assignment History
+   - Track when asset was assigned
+   - Track when asset was returned
+   - Maintain full history log
+
+5. Dashboard Overview
+   - Total assets count
+   - Assigned assets count
+   - Available assets count
+   - Total employees count
+
+6. Search and Filter
+   - Search asset by ID or name
+   - Filter assets by status (Assigned / Available)
+
+7. Role-Based Access (Future Scope)
+   - Admin role
+   - Viewer role
+
+--------------------------------------------
+5. Questions for Next Client Meeting
+--------------------------------------------
+
+1. Do you want this as a web application or desktop application?
+2. Should employees be able to log in and view their assigned assets?
+3. Do you require asset depreciation tracking?
+4. Should the system generate reports (monthly/annual)?
+5. Do you want barcode or QR code integration?
+6. Should there be email notifications when assets are assigned or returned?
+7. Do you need multi-branch support?
+8. What level of security and authentication is required?
+9. Do you need data export functionality (Excel/PDF)?
+10. What is the expected number of employees and assets?
