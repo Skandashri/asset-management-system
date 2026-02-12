@@ -1,6 +1,6 @@
 version: '3'
 
 services:
-  hello-world:
+  hello-python:
     build: .
-    container_name: hello-world-container
+    container_name: hello-python-container
