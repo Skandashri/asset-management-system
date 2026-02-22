@@ -1,0 +1,57 @@
+PROJECT: Smart Asset Management System
+TECH: FastAPI + PostgreSQL + Docker
+
+ENTITIES:
+
+1. Employee
+- id (UUID, PK)
+- name (string, required)
+- email (string, unique, required)
+- department (string)
+- is_active (boolean, default=True)
+- created_at (datetime)
+
+ENDPOINTS:
+POST /employees → Create employee
+GET /employees → Get all active employees
+GET /employees/{id} → Get specific employee
+PUT /employees/{id} → Update employee
+DELETE /employees/{id} → Soft delete employee
+
+---
+
+2. Asset
+- id (UUID, PK)
+- asset_tag (string, unique, required)
+- name (string)
+- description (string)
+- is_available (boolean, default=True)
+- is_active (boolean, default=True)
+- created_at (datetime)
+
+ENDPOINTS:
+POST /assets
+GET /assets
+GET /assets/{id}
+PUT /assets/{id}
+DELETE /assets/{id}
+
+---
+
+3. Assignment
+- id (UUID, PK)
+- employee_id (FK)
+- asset_id (FK)
+- assigned_at (datetime)
+- returned_at (datetime, nullable)
+
+RULES:
+- Prevent assignment if asset.is_available == False
+- When assigned → asset.is_available = False
+- When returned → asset.is_available = True
+
+ENDPOINTS:
+POST /assignments
+POST /assignments/{id}/return
+GET /assignments
+GET /assignments/history/{employee_id}
