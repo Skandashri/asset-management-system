@@ -2,7 +2,12 @@
 -- PostgreSQL database dump
 --
 
-
+DROP TABLE IF EXISTS public.asset_reports CASCADE;
+DROP TABLE IF EXISTS public.asset_status_logs CASCADE;
+DROP TABLE IF EXISTS public.assignments CASCADE;
+DROP TABLE IF EXISTS public.assets CASCADE;
+DROP TABLE IF EXISTS public.users CASCADE;
+DROP TABLE IF EXISTS public.roles CASCADE;
 
 -- Dumped from database version 15.16
 -- Dumped by pg_dump version 15.16
