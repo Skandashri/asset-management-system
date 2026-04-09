@@ -1,0 +1,327 @@
+================================================================================
+SWAGGER UI TESTING GUIDE - VISUAL REFERENCE
+================================================================================
+
+HOW TO ACCESS SWAGGER UI:
+--------------------------------------------------------------------------------
+1. Ensure backend server is running:
+   python -m uvicorn app.main:app --reload --port 8000
+
+2. Open browser to: http://localhost:8000/docs
+
+3. You should see the Swagger UI interface with all API endpoints listed
+
+
+AUTHENTICATION STEPS:
+--------------------------------------------------------------------------------
+Step 1: Click [Authorize] button (top right corner)
+Step 2: Enter credentials in the popup modal:
+        username: admin@optiasset.com
+        password: admin123
+Step 3: Click [Authorize] again
+Step 4: Click [Close]
+Step 5: Verify lock icon appears 🔒 next to endpoints
+
+
+EXPECTED SWAGGER UI LAYOUT:
+================================================================================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ OptiAsset Management System                                    [Authorize] │
+│ FastAPI Backend                                                            │
+│                                                                            │
+│ Tags:                                                                      │
+│ ▼ authentication                                                           │
+│   POST /api/auth/login                                                     │
+│                                                                            │
+│ ▼ Users                                                                    │
+│   GET    /api/users/                                                       │
+│   POST   /api/users/                                                       │
+│   GET    /api/users/{id}                                                   │
+│   PUT    /api/users/{id}                                                   │
+│   PATCH  /api/users/{id}/deactivate                                        │
+│                                                                            │
+│ ▼ Assets                                                                   │
+│   GET    /api/assets/                                                      │
+│   POST   /api/assets/                                                      │
+│   GET    /api/assets/{id}                                                  │
+│   PUT    /api/assets/{id}                                                  │
+│   PATCH  /api/assets/{id}/deactivate                                       │
+│   GET    /api/assets/search                                                │
+│                                                                            │
+│ ▼ Assignments                                                              │
+│   POST   /api/assignments/                                                 │
+│   GET    /api/assignments/                                                 │
+│   GET    /api/assignments/{id}                                             │
+│   PATCH  /api/assignments/{id}/return                                      │
+│                                                                            │
+│ ▼ Dashboard                                                                │
+│   GET    /api/dashboard/                                                   │
+│                                                                            │
+│ ▼ Roles                                                                    │
+│   GET    /api/roles/                                                       │
+│   POST   /api/roles/                                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+
+TESTING WORKFLOW - STEP BY STEP:
+================================================================================
+
+TEST 1: Authentication (Login as Admin)
+--------------------------------------------------------------------------------
+Endpoint: POST /api/auth/login
+1. Expand the endpoint section
+2. Click [Try it out]
+3. Fill in form data:
+   username: admin@optiasset.com
+   password: admin123
+4. Click [Execute]
+5. Expected Response:
+   - Status: 200 OK ✅
+   - Body: {
+       "access_token": "eyJhbGciOiJIUzI1NiIs...",
+       "token_type": "bearer",
+       "user_id": "...",
+       "name": "System Administrator",
+       "email": "admin@optiasset.com",
+       "role": "Admin",
+       "permissions": ["all"]
+     }
+6. Copy the access_token value for next tests
+
+
+TEST 2: Create New Asset (Admin Only)
+--------------------------------------------------------------------------------
+Endpoint: POST /api/assets/
+1. Click [Authorize] and paste your token if not already authenticated
+2. Expand POST /api/assets/
+3. Click [Try it out]
+4. Request body:
+   {
+     "asset_tag": "LAPTOP-DEL-001",
+     "name": "Dell Latitude 5520"
+   }
+5. Click [Execute]
+6. Expected Response:
+   - Status: 201 Created ✅
+   - Body: {
+       "id": "uuid-here",
+       "asset_tag": "LAPTOP-DEL-001",
+       "name": "Dell Latitude 5520",
+       "status": "Available",
+       "is_active": true,
+       "created_at": "2024-03-07T..."
+     }
+
+
+TEST 3: Get All Assets
+--------------------------------------------------------------------------------
+Endpoint: GET /api/assets/
+1. Expand GET /api/assets/
+2. Click [Try it out]
+3. Leave parameters as default (or set limit=10)
+4. Click [Execute]
+5. Expected Response:
+   - Status: 200 OK ✅
+   - Body: [ {...}, {...} ] (array of asset objects)
+
+
+TEST 4: Get Single Asset
+--------------------------------------------------------------------------------
+Endpoint: GET /api/assets/{id}
+1. Expand GET /api/assets/{id}
+2. Click [Try it out]
+3. Paste the ID from Test 2 response
+4. Click [Execute]
+5. Expected Response:
+   - Status: 200 OK ✅
+   - Body: { single asset object }
+
+
+TEST 5: Update Asset
+--------------------------------------------------------------------------------
+Endpoint: PUT /api/assets/{id}
+1. Expand PUT /api/assets/{id}
+2. Click [Try it out]
+3. Use same ID as before
+4. Request body:
+   {
+     "asset_tag": "LAPTOP-DEL-001-NEW",
+     "name": "Dell Latitude 5520 Updated",
+     "status": "Maintenance"
+   }
+5. Click [Execute]
+6. Expected Response:
+   - Status: 200 OK ✅
+   - Body: { updated asset object }
+
+
+TEST 6: Create User (Admin Only)
+--------------------------------------------------------------------------------
+Endpoint: POST /api/users/
+1. Expand POST /api/users/
+2. Click [Try it out]
+3. Request body:
+   {
+     "name": "Test Employee",
+     "email": "test@company.com",
+     "password": "test123"
+   }
+4. Click [Execute]
+5. Expected Response:
+   - Status: 201 Created ✅
+   - Body: { new user object }
+
+
+TEST 7: Create Assignment
+--------------------------------------------------------------------------------
+Endpoint: POST /api/assignments/
+1. Expand POST /api/assignments/
+2. Click [Try it out]
+3. Request body:
+   {
+     "user_id": "uuid-from-test-6",
+     "asset_id": "uuid-from-test-2"
+   }
+4. Click [Execute]
+5. Expected Response:
+   - Status: 201 Created ✅
+   - Body: { assignment object with user and asset details }
+
+
+TEST 8: Return Asset
+--------------------------------------------------------------------------------
+Endpoint: PATCH /api/assignments/{id}/return
+1. Expand PATCH /api/assignments/{id}/return
+2. Click [Try it out]
+3. Use assignment ID from Test 7
+4. Click [Execute]
+5. Expected Response:
+   - Status: 200 OK ✅
+   - Body: { assignment with return_date set }
+
+
+TEST 9: Get Dashboard Stats
+--------------------------------------------------------------------------------
+Endpoint: GET /api/dashboard/
+1. Expand GET /api/dashboard/
+2. Click [Try it out]
+3. Click [Execute]
+4. Expected Response:
+   - Status: 200 OK ✅
+   - Body: {
+       "total_assets": 10,
+       "total_users": 5,
+       "available_assets": 8,
+       "assigned_assets": 2
+     }
+
+
+TEST 10: RBAC - Login as Employee and Try Restricted Operation
+--------------------------------------------------------------------------------
+Step A: Logout from Swagger UI (click lock icon → Logout)
+
+Step B: Login as Employee
+Endpoint: POST /api/auth/login
+1. username: employee@optiasset.com
+2. password: employee123
+3. Execute → 200 OK ✅
+4. Copy employee token
+
+Step C: Try to View Assets (Should Work)
+Endpoint: GET /api/assets/
+1. Execute → 200 OK ✅ (Employee has view:assets permission)
+
+Step D: Try to Create Asset (Should Fail)
+Endpoint: POST /api/assets/
+1. Request body: {"asset_tag": "TEST", "name": "Test"}
+2. Execute → 403 Forbidden ❌
+3. Expected error: "Not enough permissions. Required privilege: manage:assets"
+
+This proves RBAC is working correctly! ✅
+
+
+SCREENSHOT CHECKLIST:
+================================================================================
+
+Capture ONE screenshot showing:
+
+✅ Swagger UI interface visible
+✅ At least one expanded endpoint
+✅ Documentation visible (description, parameters)
+✅ Green "200 OK" or "201 Created" response badge
+✅ Response body JSON visible
+✅ Authorization lock icon (showing authenticated)
+
+Example composition:
+- Browser window at 75% zoom
+- Left side: Endpoint list
+- Center: Expanded endpoint with docs
+- Right: Response panel with success indicator
+
+
+COMMON ISSUES & SOLUTIONS:
+================================================================================
+
+Issue: 401 Unauthorized on all endpoints
+Solution: Click [Authorize] and enter credentials
+
+Issue: Token expired during testing
+Solution: Re-login to get fresh token (tokens expire in 30 min)
+
+Issue: 400 Bad Request on asset creation
+Solution: Check asset_tag is unique, not duplicate
+
+Issue: 404 Not Found
+Solution: Verify UUID format is correct, no extra spaces
+
+Issue: CORS error in browser
+Solution: Backend runs on localhost:8000, Swagger accesses it directly
+
+Issue: Server won't start
+Solution: Check port 8000 is not in use, Docker database is running
+
+
+SUCCESS CRITERIA:
+================================================================================
+
+All Tests Pass: ✅
+- Authentication works
+- CRUD operations return correct status codes
+- RBAC prevents unauthorized access
+- Documentation is visible and professional
+- Response formats match specification
+
+Documentation Quality: ✅
+- Every endpoint has description
+- Parameters are explained
+- Response models shown
+- Error conditions documented
+- Database actions specified
+
+Code Quality: ✅
+- Professional naming conventions
+- Consistent structure across routers
+- Proper error handling
+- Type hints throughout
+- Business logic commented
+
+
+FINAL SUBMISSION CHECKLIST:
+================================================================================
+
+[✅] api_design.txt file created and comprehensive
+[✅] All routers implemented with documentation
+[✅] Schemas properly defined with validation
+[✅] Models with relationships and cascade rules
+[✅] RBAC system fully functional
+[✅] Swagger UI accessible at /docs
+[✅] All endpoints tested successfully
+[✅] Screenshots captured showing 200 OK responses
+[✅] GitHub repository updated with all files
+[✅] Submission summary document completed
+
+
+================================================================================
+END OF SWAGGER UI TESTING GUIDE
+================================================================================

@@ -1,57 +1,778 @@
-PROJECT: Smart Asset Management System
-TECH: FastAPI + PostgreSQL + Docker
+================================================================================
+OPTIASSET ASSET MANAGEMENT SYSTEM - API DESIGN DOCUMENT
+================================================================================
+Version: 2.0 (Atomic-Scale Design)
+Framework: FastAPI + PostgreSQL + SQLAlchemy
+Authentication: JWT (OAuth2 Password Flow)
+Authorization: Role-Based Access Control (RBAC)
+Documentation: OpenAPI/Swagger UI (Auto-generated)
+================================================================================
 
-ENTITIES:
+SYSTEM OVERVIEW
+--------------------------------------------------------------------------------
+Enterprise asset management system for tracking IT equipment inventory,
+employee assignments, and maintenance lifecycle. Implements granular role-based
+access control with two primary user roles: Admin and Employee.
 
-1. Employee
-- id (UUID, PK)
-- name (string, required)
-- email (string, unique, required)
-- department (string)
-- is_active (boolean, default=True)
-- created_at (datetime)
+TECH STACK:
+- Backend: FastAPI (Python 3.11+)
+- Database: PostgreSQL 15
+- ORM: SQLAlchemy 2.0 (Async support ready)
+- Authentication: JWT via python-jose
+- Password Hashing: bcrypt
+- Validation: Pydantic v2
+- Documentation: Swagger UI / ReDoc (auto-generated)
+
+================================================================================
+AUTHENTICATION & AUTHORIZATION
+================================================================================
+
+ENDPOINT: POST /api/auth/login
+Tags: [Authentication]
+Summary: Authenticate user and retrieve JWT access token
+Request Body: application/x-www-form-urlencoded
+  - username (string): User email address
+  - password (string): User password
+Response: 200 OK
+  {
+    "access_token": "eyJhbGciOiJIUzI1NiIs...",
+    "token_type": "bearer",
+    "user_id": "uuid",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "role": "Admin|Employee",
+    "permissions": ["all"] | ["view:assets", "view:my_gear"]
+  }
+Error Responses:
+  - 401 Unauthorized: Invalid credentials
+  - 400 Bad Request: Inactive user account
+
+SECURITY SCHEME:
+- Type: OAuth2 Password Flow
+- Token URL: /api/auth/login
+- Header Format: Authorization: Bearer <token>
+- Token Expiry: 30 minutes
+
+================================================================================
+ENTITY 1: USER (System Users with Role-Based Access)
+================================================================================
+
+DATABASE MODEL: users
+DESCRIPTION: System users who can access the platform with assigned roles
+and permissions. Replaces legacy "Employee" entity.
+
+FIELDS:
+- id (UUID, Primary Key): Unique identifier
+- role_id (UUID, Foreign Key → roles.id): Role assignment constraint
+- name (String, Required): Full name of user
+- email (String, Unique, Required): Email address for authentication
+- hashed_password (String, Required): Bcrypt password hash
+- is_active (Boolean, Default=True): Soft delete flag
+- created_at (DateTime, Auto): Account creation timestamp
+
+RELATIONSHIPS:
+- belongs_to: Role (many-to-one via role_id)
+- has_many: Assignments (one-to-many, cascade delete)
+
+PERMISSIONS REQUIRED:
+- manage:users - Create, update, delete users
+- view:users - View user list and details
 
 ENDPOINTS:
-POST /employees → Create employee
-GET /employees → Get all active employees
-GET /employees/{id} → Get specific employee
-PUT /employees/{id} → Update employee
-DELETE /employees/{id} → Soft delete employee
 
----
+POST /api/users/
+  Summary: Create new user account
+  Access: Admin only (manage:users privilege)
+  Request Body: application/json
+    {
+      "name": "Alice Johnson",
+      "email": "alice@company.com",
+      "password": "securePass123",
+      "role_id": "uuid-optional"
+    }
+  Response: 201 Created
+    {
+      "id": "uuid",
+      "name": "Alice Johnson",
+      "email": "alice@company.com",
+      "is_active": true,
+      "created_at": "2024-03-07T10:30:00Z",
+      "role": {"id": "uuid", "name": "Employee", "permissions": [...]}
+    }
+  Errors:
+    - 400 Bad Request: Email already exists, invalid role_id
+    - 403 Forbidden: Insufficient permissions
 
-2. Asset
-- id (UUID, PK)
-- asset_tag (string, unique, required)
-- name (string)
-- description (string)
-- is_available (boolean, default=True)
-- is_active (boolean, default=True)
-- created_at (datetime)
+GET /api/users/
+  Summary: Retrieve all active users with pagination
+  Access: Admin only (view:users privilege)
+  Query Parameters:
+    - skip (integer, default=0): Offset for pagination
+    - limit (integer, default=100): Max records to return
+  Response: 200 OK
+    [
+      {
+        "id": "uuid",
+        "name": "Alice Johnson",
+        "email": "alice@company.com",
+        "is_active": true,
+        "created_at": "2024-03-07T10:30:00Z",
+        "role": {...}
+      },
+      ...
+    ]
+
+GET /api/users/{id}
+  Summary: Retrieve specific user details
+  Access: Admin only (view:users privilege)
+  Path Parameters:
+    - id (UUID): User unique identifier
+  Response: 200 OK
+    { user object }
+  Errors:
+    - 404 Not Found: User not found or inactive
+
+PUT /api/users/{id}
+  Summary: Update user information
+  Access: Admin only (manage:users privilege)
+  Path Parameters:
+    - id (UUID): User unique identifier
+  Request Body: application/json (all fields optional)
+    {
+      "name": "Alice Smith",
+      "email": "alicesmith@company.com",
+      "role_id": "new-uuid",
+      "is_active": false
+    }
+  Response: 200 OK
+    { updated user object }
+  Errors:
+    - 404 Not Found: User not found
+    - 400 Bad Request: Invalid role_id, email conflict
+
+PATCH /api/users/{id}/deactivate
+  Summary: Soft delete user account (set is_active=false)
+  Access: Admin only (manage:users privilege)
+  Path Parameters:
+    - id (UUID): User unique identifier
+  Response: 200 OK
+    { deactivated user object }
+  Errors:
+    - 404 Not Found: User not found
+
+GET /api/users/{id}/assignments
+  Summary: Retrieve assignment history for specific user
+  Access: Admin only (view:users privilege)
+  Path Parameters:
+    - id (UUID): User unique identifier
+  Response: 200 OK
+    [
+      {
+        "id": "uuid",
+        "user_id": "uuid",
+        "asset_id": "uuid",
+        "assigned_date": "2024-01-15T09:00:00Z",
+        "return_date": null,
+        "user": {...},
+        "asset": {...}
+      },
+      ...
+    ]
+
+================================================================================
+ENTITY 2: ROLE (Role Definitions with Permission Arrays)
+================================================================================
+
+DATABASE MODEL: roles
+DESCRIPTION: Defines user roles with associated permission strings for RBAC
+
+FIELDS:
+- id (UUID, Primary Key): Unique identifier
+- name (String, Unique, Required): Role name (e.g., "Admin", "Employee")
+- permissions (Array[String], Default=[]): Permission strings
+
+DEFAULT ROLES:
+1. Admin
+   - Permissions: ["all"] (wildcard for all operations)
+2. Employee
+   - Permissions: ["view:my_gear", "view:assets"]
 
 ENDPOINTS:
-POST /assets
-GET /assets
-GET /assets/{id}
-PUT /assets/{id}
-DELETE /assets/{id}
 
----
+POST /api/roles/
+  Summary: Create new role definition
+  Access: Admin only (manage:roles privilege)
+  Request Body: application/json
+    {
+      "name": "Manager",
+      "permissions": ["view:assets", "view:users", "manage:assets"]
+    }
+  Response: 201 Created
+    { role object }
 
-3. Assignment
-- id (UUID, PK)
-- employee_id (FK)
-- asset_id (FK)
-- assigned_at (datetime)
-- returned_at (datetime, nullable)
+GET /api/roles/
+  Summary: List all available roles
+  Access: Authenticated users
+  Response: 200 OK
+    [
+      {
+        "id": "uuid",
+        "name": "Admin",
+        "permissions": ["all"]
+      },
+      ...
+    ]
 
-RULES:
-- Prevent assignment if asset.is_available == False
-- When assigned → asset.is_available = False
-- When returned → asset.is_available = True
+PATCH /api/users/{id}/role
+  Summary: Assign/change user's role
+  Access: Admin only (manage:roles privilege)
+  Request Body: application/json
+    {
+      "role_id": "new-role-uuid"
+    }
+  Response: 200 OK
+    { updated user with new role }
+
+================================================================================
+ENTITY 3: ASSET (Company IT Equipment & Inventory)
+================================================================================
+
+DATABASE MODEL: assets
+DESCRIPTION: Trackable company assets including laptops, monitors, furniture,
+and other equipment. Supports status tracking and assignment history.
+
+FIELDS:
+- id (UUID, Primary Key): Unique identifier
+- asset_tag (String, Unique, Required): Physical asset tag/label
+- name (String, Required): Asset model/name
+- status (String, Default="Available"): Current state
+  - Enum: "Available", "Assigned", "Maintenance", "Retired"
+- is_active (Boolean, Default=True): Soft delete flag
+- created_at (DateTime, Auto): Creation timestamp
+
+RELATIONSHIPS:
+- has_many: Assignments (one-to-many, cascade delete)
+- has_many: AssetStatusLog (audit trail)
+
+BUSINESS RULES:
+- UNIQUE constraint on asset_tag
+- Status must match enum values
+- Only Available assets can be assigned
+- Assignment changes status to "Assigned"
+- Return changes status back to "Available"
+
+PERMISSIONS REQUIRED:
+- manage:assets - Create, update, deactivate assets
+- view:assets - View asset list and details
 
 ENDPOINTS:
-POST /assignments
-POST /assignments/{id}/return
-GET /assignments
-GET /assignments/history/{employee_id}
+
+POST /api/assets/
+  Summary: Add new asset to inventory
+  Access: Admin only (manage:assets privilege)
+  Request Body: application/json
+    {
+      "asset_tag": "LAPTOP-2024-001",
+      "name": "MacBook Pro 16\" M3"
+    }
+  Response: 201 Created
+    {
+      "id": "uuid",
+      "asset_tag": "LAPTOP-2024-001",
+      "name": "MacBook Pro 16\" M3",
+      "status": "Available",
+      "is_active": true,
+      "created_at": "2024-03-07T10:30:00Z"
+    }
+  Errors:
+    - 400 Bad Request: Duplicate asset_tag
+
+GET /api/assets/
+  Summary: Retrieve all assets with optional filtering
+  Access: Authenticated users (view:assets privilege)
+  Query Parameters:
+    - status (string, optional): Filter by status
+    - skip (integer, default=0): Pagination offset
+    - limit (integer, default=100): Max results
+  Response: 200 OK
+    [
+      {
+        "id": "uuid",
+        "asset_tag": "LAPTOP-2024-001",
+        "name": "MacBook Pro 16\" M3",
+        "status": "Available",
+        "is_active": true,
+        "created_at": "2024-03-07T10:30:00Z"
+      },
+      ...
+    ]
+
+GET /api/assets/search?q={query}
+  Summary: Search assets by ID or name
+  Access: Authenticated users (view:assets privilege)
+  Query Parameters:
+    - q (string): Search keyword
+    - skip (integer, default=0): Pagination
+    - limit (integer, default=100): Max results
+  Response: 200 OK
+    [ matching assets ]
+
+GET /api/assets/{id}
+  Summary: Retrieve specific asset details
+  Access: Authenticated users (view:assets privilege)
+  Path Parameters:
+    - id (UUID): Asset unique identifier
+  Response: 200 OK
+    {
+      "id": "uuid",
+      "asset_tag": "LAPTOP-2024-001",
+      "name": "MacBook Pro 16\" M3",
+      "status": "Available",
+      "is_active": true,
+      "created_at": "2024-03-07T10:30:00Z",
+      "status_logs": [...]
+    }
+  Errors:
+    - 404 Not Found: Asset not found or inactive
+
+PUT /api/assets/{id}
+  Summary: Update asset information
+  Access: Admin only (manage:assets privilege)
+  Path Parameters:
+    - id (UUID): Asset unique identifier
+  Request Body: application/json (all fields optional)
+    {
+      "asset_tag": "LAPTOP-2024-001-NEW",
+      "name": "Updated Name",
+      "status": "Maintenance",
+      "is_active": false
+    }
+  Response: 200 OK
+    { updated asset object }
+  Errors:
+    - 404 Not Found: Asset not found
+    - 400 Bad Request: Invalid status value
+
+PATCH /api/assets/{id}/deactivate
+  Summary: Soft delete asset (set is_active=false)
+  Access: Admin only (manage:assets privilege)
+  Path Parameters:
+    - id (UUID): Asset unique identifier
+  Response: 200 OK
+    { deactivated asset object }
+
+GET /api/assets/{id}/current-holder
+  Summary: Get current holder of an asset
+  Access: Authenticated users (view:assets privilege)
+  Path Parameters:
+    - id (UUID): Asset unique identifier
+  Response: 200 OK
+    {
+      "id": "uuid",
+      "user_id": "uuid",
+      "asset_id": "uuid",
+      "assigned_date": "2024-01-15T09:00:00Z",
+      "return_date": null,
+      "user": {...}
+    }
+  Errors:
+    - 404 Not Found: No active assignment found
+
+GET /api/assets/{id}/history
+  Summary: Retrieve complete assignment history for asset
+  Access: Authenticated users (view:assets privilege)
+  Path Parameters:
+    - id (UUID): Asset unique identifier
+  Response: 200 OK
+    [
+      {
+        "id": "uuid",
+        "user_id": "uuid",
+        "asset_id": "uuid",
+        "assigned_date": "2024-01-15T09:00:00Z",
+        "return_date": "2024-03-01T14:30:00Z",
+        "user": {...}
+      },
+      ...
+    ]
+
+================================================================================
+ENTITY 4: ASSIGNMENT (Asset-to-Employee Mapping with Audit Trail)
+================================================================================
+
+DATABASE MODEL: assignments
+DESCRIPTION: Tracks temporary custody of assets assigned to employees.
+Supports assignment date, expected return, and actual return tracking.
+
+FIELDS:
+- id (UUID, Primary Key): Unique identifier
+- user_id (UUID, Foreign Key → users.id): Assigned employee
+- asset_id (UUID, Foreign Key → assets.id): Assigned asset
+- assigned_date (DateTime, Auto): Assignment timestamp
+- return_date (DateTime, Nullable): Actual return timestamp
+
+RELATIONSHIPS:
+- belongs_to: User (many-to-one)
+- belongs_to: Asset (many-to-one)
+
+BUSINESS RULES:
+- Asset must be in "Available" status before assignment
+- User must be active (is_active=true)
+- Assignment sets asset.status = "Assigned"
+- Return sets asset.status = "Available"
+- Each assignment creates audit log entry
+- Prevent duplicate active assignments (same asset to multiple users)
+
+PERMISSIONS REQUIRED:
+- manage:assignments - Create/return assignments
+- view:assignments - View assignment list
+
+ENDPOINTS:
+
+POST /api/assignments/
+  Summary: Assign asset to employee
+  Access: Admin only (manage:assignments privilege)
+  Request Body: application/json
+    {
+      "user_id": "employee-uuid",
+      "asset_id": "asset-uuid"
+    }
+  Response: 201 Created
+    {
+      "id": "uuid",
+      "user_id": "employee-uuid",
+      "asset_id": "asset-uuid",
+      "assigned_date": "2024-03-07T10:30:00Z",
+      "return_date": null,
+      "user": {...},
+      "asset": {...}
+    }
+  Errors:
+    - 404 Not Found: User or asset not found
+    - 400 Bad Request: Asset not available, user inactive
+    - 403 Forbidden: Only admins can assign
+
+PATCH /api/assignments/{id}/return
+  Summary: Process asset return
+  Access: Admin only (manage:assignments privilege)
+  Path Parameters:
+    - id (UUID): Assignment unique identifier
+  Response: 200 OK
+    {
+      "id": "uuid",
+      "user_id": "uuid",
+      "asset_id": "uuid",
+      "assigned_date": "2024-01-15T09:00:00Z",
+      "return_date": "2024-03-07T14:30:00Z",
+      "user": {...},
+      "asset": {...}
+    }
+  Errors:
+    - 404 Not Found: Assignment not found
+    - 400 Bad Request: Already returned
+
+GET /api/assignments/{id}
+  Summary: Retrieve specific assignment details
+  Access: Authenticated users (view:assignments privilege)
+  Path Parameters:
+    - id (UUID): Assignment unique identifier
+  Response: 200 OK
+    { assignment object with user and asset details }
+
+GET /api/assignments/
+  Summary: List all active assignments (no return date)
+  Access: Authenticated users (view:assignments privilege)
+  Query Parameters:
+    - active_only (boolean, default=true): Filter active only
+    - skip (integer, default=0): Pagination
+    - limit (integer, default=100): Max results
+  Response: 200 OK
+    [
+      {
+        "id": "uuid",
+        "user_id": "uuid",
+        "asset_id": "uuid",
+        "assigned_date": "2024-01-15T09:00:00Z",
+        "return_date": null,
+        "user": {...},
+        "asset": {...}
+      },
+      ...
+    ]
+
+================================================================================
+ENTITY 5: DASHBOARD (Aggregated Statistics & Metrics)
+================================================================================
+
+ENDPOINT: GET /api/dashboard/
+Tags: [Dashboard, Analytics]
+Summary: Retrieve system-wide statistics and metrics
+Access: Admin only (view:dashboard privilege)
+Response: 200 OK
+  {
+    "total_assets": 1248,
+    "total_users": 450,
+    "available_assets": 215,
+    "assigned_assets": 892
+  }
+Business Logic:
+- total_assets: COUNT(assets) WHERE is_active=true
+- total_users: COUNT(users) WHERE is_active=true
+- available_assets: COUNT(assets) WHERE status='Available'
+- assigned_assets: COUNT(assets) WHERE status='Assigned'
+
+================================================================================
+ENTITY 6: ASSET_STATUS_LOG (Audit Trail for Status Changes)
+================================================================================
+
+DATABASE MODEL: asset_status_logs
+DESCRIPTION: Immutable audit log tracking all status changes for compliance
+and forensic analysis.
+
+FIELDS:
+- id (UUID, Primary Key): Unique identifier
+- asset_id (UUID, Foreign Key → assets.id): Related asset
+- old_status (String, Nullable): Previous status
+- new_status (String, Required): New status
+- changed_at (DateTime, Auto): Change timestamp
+
+AUTOMATED LOGGING:
+- Asset assignment triggers log entry
+- Asset return triggers log entry
+- Manual status change triggers log entry
+
+READ-ONLY ACCESS:
+No direct CRUD endpoints. Accessed via asset relationship:
+GET /api/assets/{id}?include_logs=true
+
+================================================================================
+PERMISSION MATRIX
+================================================================================
+
+ENDPOINT                    | Admin | Employee
+----------------------------|-------|----------
+POST /auth/login            | ✅    | ✅
+POST /assets                | ✅    | ❌
+GET /assets                 | ✅    | ✅
+GET /assets/{id}            | ✅    | ✅
+PUT /assets/{id}            | ✅    | ❌
+PATCH /assets/{id}/deactivate | ✅  | ❌
+POST /users                 | ✅    | ❌
+GET /users                  | ✅    | ❌
+PUT /users/{id}             | ✅    | ❌
+PATCH /users/{id}/deactivate | ✅   | ❌
+POST /assignments           | ✅    | ❌
+PATCH /assignments/{id}/return | ✅ | ❌
+GET /assignments            | ✅    | ✅
+GET /dashboard              | ✅    | ✅
+
+================================================================================
+ERROR HANDLING STANDARDS
+================================================================================
+
+HTTP 400 BAD REQUEST:
+{
+  "detail": "Validation error message"
+}
+
+HTTP 401 UNAUTHORIZED:
+{
+  "detail": "Invalid credentials",
+  "headers": {"WWW-Authenticate": "Bearer"}
+}
+
+HTTP 403 FORBIDDEN:
+{
+  "detail": "Not enough permissions. Required privilege: manage:assets"
+}
+
+HTTP 404 NOT FOUND:
+{
+  "detail": "Resource not found"
+}
+
+HTTP 500 INTERNAL SERVER ERROR:
+{
+  "detail": "Internal server error"
+}
+
+================================================================================
+DATABASE SCHEMA (PostgreSQL)
+================================================================================
+
+TABLE: roles
+CREATE TABLE roles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR UNIQUE NOT NULL,
+    permissions VARCHAR[] DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+TABLE: users
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    role_id UUID REFERENCES roles(id),
+    name VARCHAR NOT NULL,
+    email VARCHAR UNIQUE NOT NULL,
+    hashed_password VARCHAR NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+TABLE: assets
+CREATE TABLE assets (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    asset_tag VARCHAR UNIQUE NOT NULL,
+    name VARCHAR NOT NULL,
+    status VARCHAR DEFAULT 'Available',
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+TABLE: assignments
+CREATE TABLE assignments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    asset_id UUID REFERENCES assets(id) ON DELETE CASCADE,
+    assigned_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    return_date TIMESTAMP
+);
+
+TABLE: asset_status_logs
+CREATE TABLE asset_status_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    asset_id UUID REFERENCES assets(id) ON DELETE CASCADE,
+    old_status VARCHAR,
+    new_status VARCHAR NOT NULL,
+    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+================================================================================
+ENVIRONMENT CONFIGURATION
+================================================================================
+
+DATABASE_URL=postgresql://postgres:password@localhost:5433/asset_management
+SECRET_KEY=your-super-secret-key-change-in-production
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+DOCKER COMPOSE:
+version: '3.8'
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: asset_management
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://postgres:password@db:5432/asset_management
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
+
+================================================================================
+TESTING CHECKLIST
+================================================================================
+
+AUTHENTICATION:
+[ ] Login with valid credentials → 200 OK
+[ ] Login with invalid credentials → 401 Unauthorized
+[ ] Access protected endpoint without token → 401 Unauthorized
+[ ] Token expires after 30 minutes → 401 Unauthorized
+
+ASSETS CRUD:
+[ ] Create asset with unique tag → 201 Created
+[ ] Create asset with duplicate tag → 400 Bad Request
+[ ] Get all assets → 200 OK with array
+[ ] Get single asset → 200 OK with object
+[ ] Get non-existent asset → 404 Not Found
+[ ] Update asset → 200 OK with updated object
+[ ] Deactivate asset → 200 OK with deactivated object
+[ ] Search assets → 200 OK with filtered results
+
+USERS CRUD:
+[ ] Create user → 201 Created
+[ ] Create user with existing email → 400 Bad Request
+[ ] Get all users → 200 OK
+[ ] Get single user → 200 OK
+[ ] Update user role → 200 OK
+[ ] Deactivate user → 200 OK
+
+ASSIGNMENTS:
+[ ] Assign available asset → 201 Created
+[ ] Assign unavailable asset → 400 Bad Request
+[ ] Return asset → 200 OK with return_date set
+[ ] Return already returned asset → 400 Bad Request
+[ ] Get active assignments → 200 OK
+
+RBAC:
+[ ] Employee tries to create asset → 403 Forbidden
+[ ] Employee tries to view assets → 200 OK
+[ ] Employee tries to manage users → 403 Forbidden
+[ ] Admin accesses all endpoints → Success
+
+DASHBOARD:
+[ ] Get dashboard stats → 200 OK with metrics
+
+================================================================================
+SWAGGER UI ACCESS
+================================================================================
+
+Interactive Documentation:
+URL: http://localhost:8000/docs
+Format: Swagger UI (OpenAPI 3.0)
+Features:
+  - Try it out buttons for all endpoints
+  - Automatic request/response validation
+  - Schema visualization
+  - Authorize button for JWT token
+
+Alternative Documentation:
+URL: http://localhost:8000/redoc
+Format: ReDoc
+Features:
+  - Three-column layout
+  - Better readability
+  - Search functionality
+
+================================================================================
+VERSION HISTORY
+================================================================================
+
+v2.0 (March 2026) - Current
+  - Added Role-based access control (RBAC)
+  - Renamed Employee → User entity
+  - Added permissions array to roles
+  - Implemented RequirePrivilege dependency
+  - Added dashboard endpoint
+  - Enhanced audit logging
+
+v1.0 (Initial)
+  - Basic CRUD for Employee, Asset, Assignment
+  - Simple authentication without RBAC
+
+================================================================================
+GITHUB REPOSITORY
+================================================================================
+
+Backend Repository: [Your GitHub URL]
+File Location: /asset-management-system/api_design.txt
+Last Updated: March 7, 2026
+Maintained By: Skandashri S.N
+
+================================================================================
+END OF API DESIGN DOCUMENT
+================================================================================
