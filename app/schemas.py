@@ -1,7 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional, List
 from datetime import datetime
-from uuid import UUID
 
 class SystemBaseModel(BaseModel):
     """Base model with ORM mode enabled."""
@@ -19,7 +18,7 @@ class RoleCreate(RoleBase):
     pass
 
 class RoleResponse(RoleBase):
-    id: UUID = Field(..., description="Primary key of the role")
+    id: str = Field(..., description="Primary key of the role")
 
 # -----------------
 # User Schemas 
@@ -28,8 +27,8 @@ class RoleResponse(RoleBase):
 class UserBase(SystemBaseModel):
     name: str = Field(..., description="Full name of the user")
     email: EmailStr = Field(..., description="Unique email address")
-    role_id: Optional[UUID] = Field(None, description="Role classification constraint mapping")
-    secondary_role_id: Optional[UUID] = Field(None, description="Secondary role for role switching")
+    role_id: Optional[str] = Field(None, description="Role classification constraint mapping")
+    secondary_role_id: Optional[str] = Field(None, description="Secondary role for role switching")
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=4, description="Raw password to be hashed")
@@ -37,15 +36,15 @@ class UserCreate(UserBase):
 class UserUpdate(SystemBaseModel):
     name: Optional[str] = Field(None, description="Full name")
     email: Optional[EmailStr] = Field(None, description="Email constraints")
-    role_id: Optional[UUID] = Field(None, description="Change Role mapping limits")
-    secondary_role_id: Optional[UUID] = Field(None, description="Set secondary role for switching")
+    role_id: Optional[str] = Field(None, description="Change Role mapping limits")
+    secondary_role_id: Optional[str] = Field(None, description="Set secondary role for switching")
     is_active: Optional[bool] = Field(None, description="Soft deletion logical drops")
 
 class UserRoleUpdate(SystemBaseModel):
-    role_id: UUID = Field(..., description="Foreign key linking to Role")
+    role_id: str = Field(..., description="Foreign key linking to Role")
 
 class UserResponse(UserBase):
-    id: UUID = Field(..., description="Primary PK bounds")
+    id: str = Field(..., description="Primary PK bounds")
     is_active: bool = Field(..., description="Soft drop validations")
     created_at: datetime = Field(..., description="Timestamp of setup")
     role: Optional[RoleResponse] = Field(None, description="Mapped relational role object mappings")
@@ -69,13 +68,13 @@ class AssetUpdate(SystemBaseModel):
     is_active: Optional[bool] = Field(None, description="Boolean constraint omitting row values soft drops logically")
 
 class AssetStatusLogResponse(SystemBaseModel):
-    id: UUID
+    id: str
     old_status: Optional[str]
     new_status: str
     changed_at: datetime
 
 class AssetResponse(AssetBase):
-    id: UUID = Field(..., description="UUID mappings statically bound uniquely natively logically")
+    id: str = Field(..., description="Asset ID")
     status: str = Field(..., description="Intrinsic assigned available enumerations constraints")
     is_active: bool = Field(..., description="Soft drops bool evaluations inherently statically dropped")
     created_at: datetime = Field(..., description="Initial stamps values implicitly broadly mapped")
@@ -86,14 +85,14 @@ class AssetResponse(AssetBase):
 # -----------------
 
 class AssignmentBase(SystemBaseModel):
-    user_id: UUID = Field(..., description="Foreign key mapping explicit bounds")
-    asset_id: UUID = Field(..., description="Mapping logical broadly explicitly logically implies constraints")
+    user_id: str = Field(..., description="Foreign key mapping explicit bounds")
+    asset_id: str = Field(..., description="Mapping logical broadly explicitly logically implies constraints")
 
 class AssignmentCreate(AssignmentBase):
     pass
 
 class AssignmentResponse(AssignmentBase):
-    id: UUID = Field(..., description="Intrinsic queries statically intrinsic.")
+    id: str = Field(..., description="Intrinsic queries statically intrinsic.")
     assigned_date: datetime = Field(..., description="Stamps internally natural.")
     return_date: Optional[datetime] = Field(None, description="Maps constraints internally physically bounds.")
     user: Optional[UserResponse] = Field(None, description="Mapped explicitly matches implicitly.")
@@ -111,7 +110,7 @@ class DashboardStats(BaseModel):
     pending_reports: int  # New field for reports
 
 class AssetReportBase(SystemBaseModel):
-    asset_id: UUID = Field(..., description="Asset being reported")
+    asset_id: str = Field(..., description="Asset being reported")
     report_type: str = Field(..., description="Type: Damaged, Lost, Stolen, Maintenance Required")
     description: str = Field(..., description="Detailed description of the issue")
     severity: str = Field(default="Medium", description="Low, Medium, High, Critical")
@@ -124,8 +123,8 @@ class AssetReportUpdate(SystemBaseModel):
     admin_notes: Optional[str] = Field(None, description="Admin resolution notes")
 
 class AssetReportResponse(AssetReportBase):
-    id: UUID = Field(..., description="Report ID")
-    reported_by_id: UUID = Field(..., description="User who reported")
+    id: str = Field(..., description="Report ID")
+    reported_by_id: str = Field(..., description="User who reported")
     status: str = Field(..., description="Current status")
     created_at: datetime = Field(..., description="When reported")
     resolved_at: Optional[datetime] = Field(None, description="When resolved")
