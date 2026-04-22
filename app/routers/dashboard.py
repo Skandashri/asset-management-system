@@ -30,6 +30,25 @@ def get_dashboard_metrics(db: Session = Depends(get_db), current_user: models.Us
         pending_reports = db.query(models.AssetReport).filter(
             models.AssetReport.status == "Pending"
         ).count()
+    
+    # For employees, get their specific stats
+    if current_user.role and current_user.role.name.lower() == "employee":
+        # Get employee's assigned assets count
+        my_assigned = db.query(models.Assignment).filter(
+            models.Assignment.user_id == current_user.id,
+            models.Assignment.return_date.is_(None)
+        ).count()
+        
+        # Get employee's pending requests count
+        my_pending_requests = db.query(models.Request).filter(
+            models.Request.user_id == current_user.id,
+            models.Request.status == "Pending"
+        ).count()
+        
+        # Get employee's reported issues count
+        my_reports = db.query(models.AssetReport).filter(
+            models.AssetReport.reported_by_id == current_user.id
+        ).count()
 
     return schemas.DashboardResponse(
         total_assets=total_assets,

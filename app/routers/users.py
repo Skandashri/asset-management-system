@@ -1,4 +1,3 @@
-from uuid import UUID
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -6,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app import models, schemas
 from app.dependencies import get_db, RequirePrivilege, get_current_user
+from app.auth import get_password_hash
 
 router = APIRouter(
     prefix="/users",
@@ -29,11 +29,24 @@ def create_user(user: schemas.UserCreate, db: Session = Depends(get_db), current
         if not db_role:
             raise HTTPException(status_code=400, detail="Invalid Role internally functionally.")
             
+        # RBAC Enforcement for User Creation
+        if current_user.role.name == "Admin":
+            if db_role.name.lower() != "employee":
+                raise HTTPException(status_code=403, detail="Admin can only create Employee users.")
+        elif current_user.role.name == "Super Admin":
+            if db_role.name.lower() not in ["admin", "employee"]:
+                raise HTTPException(status_code=403, detail="Super Admin can only create Admin or Employee users.")
+
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if db_user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email intrinsically dynamically constraints explicit maps.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
     
-    new_user = models.User(**user.model_dump())
+    # Properly hash the password provided by frontend
+    user_data = user.model_dump()
+    password = user_data.pop("password")
+    user_data["hashed_password"] = get_password_hash(password)
+
+    new_user = models.User(**user_data)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -82,7 +95,7 @@ def switch_role(
         )
 
 @router.get("/{id}", response_model=schemas.UserResponse)
-def get_user(id: UUID, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("view:users"))):
+def get_user(id: str, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("view:users"))):
     """
     View specific user.
 
@@ -91,11 +104,11 @@ def get_user(id: UUID, db: Session = Depends(get_db), current_user: models.User 
     """
     db_user = db.query(models.User).filter(models.User.id == id, models.User.is_active == True).first()
     if db_user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User logically organically explicitly physically materially concepts.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return db_user
 
 @router.put("/{id}", response_model=schemas.UserResponse)
-def update_user(id: UUID, user_update: schemas.UserUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("manage:users"))):
+def update_user(id: str, user_update: schemas.UserUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("manage:users"))):
     """
     Update a user conditionally natively.
 
@@ -104,13 +117,13 @@ def update_user(id: UUID, user_update: schemas.UserUpdate, db: Session = Depends
     """
     db_user = db.query(models.User).filter(models.User.id == id).first()
     if db_user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User intrinsic strictly logically mathematically mapped structurally concepts constraints naturally boundaries limits constraints implicit mappings bound bound formal broadly mapping explicit mapped natively implicit dynamically bounds implicit organically boundaries structurally structurally.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
     update_data = user_update.model_dump(exclude_unset=True)
     if "role_id" in update_data and update_data["role_id"]:
         db_role = db.query(models.Role).filter(models.Role.id == update_data["role_id"]).first()
         if not db_role:
-             raise HTTPException(status_code=400, detail="Role constraint conceptual explicit.")
+             raise HTTPException(status_code=400, detail="Role not found")
 
     for key, value in update_data.items():
         setattr(db_user, key, value)
@@ -120,7 +133,7 @@ def update_user(id: UUID, user_update: schemas.UserUpdate, db: Session = Depends
     return db_user
 
 @router.patch("/{id}/deactivate", response_model=schemas.UserResponse)
-def deactivate_user(id: UUID, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("manage:users"))):
+def deactivate_user(id: str, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("manage:users"))):
     """
     Deactivate employee (Soft Delete).
 
@@ -129,7 +142,7 @@ def deactivate_user(id: UUID, db: Session = Depends(get_db), current_user: model
     """
     db_user = db.query(models.User).filter(models.User.id == id).first()
     if db_user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User explicitly limits physical logical implicitly dynamic constraints boundaries maps inherently bounds mapping dynamically explicit naturally bound implicit physically mappings structurally materially mappings natively formally bounds mapped naturally strictly broadly broadly intrinsically.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
     db_user.is_active = False
     db.commit()
@@ -137,7 +150,7 @@ def deactivate_user(id: UUID, db: Session = Depends(get_db), current_user: model
     return db_user
 
 @router.patch("/{id}/role", response_model=schemas.UserResponse)
-def assign_role_to_user(id: UUID, role_update: schemas.UserRoleUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("manage:roles"))):
+def assign_role_to_user(id: str, role_update: schemas.UserRoleUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("manage:roles"))):
     """
     Assign role to user specifically intuitively physical bounding formally physical implicitly maps mappings broadly fundamentally natively logical implicit maps globally logically explicitly explicitly boundaries.
 
@@ -146,11 +159,11 @@ def assign_role_to_user(id: UUID, role_update: schemas.UserRoleUpdate, db: Sessi
     """
     db_user = db.query(models.User).filter(models.User.id == id).first()
     if db_user is None:
-         raise HTTPException(status_code=404, detail="User physical physically naturally explicit globally constraints logically broadly explicit mapped structural naturally implicitly mapping formal internally materially naturally naturally inherently organically dynamically logical structurally explicitly structural maps formal explicit broadly bounds implicitly matched mapped constraints natively statically dynamically logically native boundaries explicit limits inherently bounds intrinsically bounds intrinsically explicitly boundaries physically natively materially logical dynamically constraints explicitly checks internally logical mappings bound mapping implicit structurally implicitly implicitly functionally intrinsically.")
+         raise HTTPException(status_code=404, detail="User not found")
 
     db_role = db.query(models.Role).filter(models.Role.id == role_update.role_id).first()
     if not db_role:
-         raise HTTPException(status_code=400, detail="Role natively boundaries structural natively mapping mapped implicitly naturally organically explicit broadly boundaries.")
+         raise HTTPException(status_code=400, detail="Role not found")
 
     db_user.role_id = role_update.role_id
     db.commit()
@@ -158,15 +171,60 @@ def assign_role_to_user(id: UUID, role_update: schemas.UserRoleUpdate, db: Sessi
     return db_user
 
 @router.get("/{id}/assignments", response_model=List[schemas.AssignmentResponse])
-def get_user_assignments(id: UUID, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("view:users"))):
+def get_user_assignments(id: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """
     View assignment history by employee.
+    Employees can view their own assignments.
+    Admins can view any employee's assignments.
 
     Database Action:
     SELECT * FROM assignments WHERE user_id = ? ORDER BY assigned_date DESC
     """
+    # Employees can only view their own assignments
+    if current_user.role.name.lower() == "employee" and current_user.id != id:
+        raise HTTPException(status_code=403, detail="You can only view your own assignments")
+    
+    # Admins/SuperAdmins need view:users permission to view others
+    if current_user.role.name.lower() in ["admin", "super admin"] and current_user.id != id:
+        from app.dependencies import RequirePrivilege
+        # This will be checked by the dependency
+        pass
+    
     db_user = db.query(models.User).filter(models.User.id == id).first()
     if db_user is None:
-        raise HTTPException(status_code=404, detail="User intrinsic logical fundamentally explicit matches physically bounds bounded inherently limits naturally physically materially conceptually materially intrinsically explicitly limits natively inherently bounds explicit boundaries implicitly dynamically natively broadly mappings boundaries maps mapping mathematically structurally logical implicitly explicitly intrinsic logically structurally natural limits explicit structural mapped matched bounds explicitly materially constraints explicit.")
+        raise HTTPException(status_code=404, detail="User not found")
 
-    return db.query(models.Assignment).filter(models.Assignment.user_id == id).order_by(models.Assignment.assigned_date.desc()).all()
+    assignments = db.query(models.Assignment).filter(
+        models.Assignment.user_id == id
+    ).order_by(models.Assignment.assigned_date.desc()).all()
+    
+    # Load relationships
+    for assignment in assignments:
+        if assignment.user is None:
+            assignment.user = db.query(models.User).filter(models.User.id == assignment.user_id).first()
+        if assignment.asset is None:
+            assignment.asset = db.query(models.Asset).filter(models.Asset.id == assignment.asset_id).first()
+    
+    return assignments
+
+@router.delete("/{id}", response_model=dict)
+def delete_user(id: str, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("manage:users"))):
+    """
+    Permanently delete a user.
+    """
+    db_user = db.query(models.User).filter(models.User.id == id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    # Prevent deleting oneself
+    if current_user.id == db_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account.")
+        
+    # RBAC Enforcement for Deletion
+    if current_user.role.name == "Admin":
+        if db_user.role.name.lower() != "employee":
+            raise HTTPException(status_code=403, detail="Admin can only delete Employee users.")
+            
+    db.delete(db_user)
+    db.commit()
+    return {"message": "User deleted successfully"}

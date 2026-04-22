@@ -1,5 +1,4 @@
 from datetime import datetime
-from uuid import UUID
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -33,21 +32,19 @@ def assign_asset(assignment: schemas.AssignmentCreate, db: Session = Depends(get
     """
     db_user = db.query(models.User).filter(models.User.id == assignment.user_id).first()
     if not db_user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User logically boundaries materially statically structurally bounds formally mappings explicitly physical constraint structurally structurally formally natural explicitly constraints implicit explicitly internally explicitly logically explicit materially limits bounded bounds implicitly.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    # Restrict assignment to Admin role 
-    # Validates if role strictly mapped
-    db_role = db.query(models.Role).filter(models.Role.id == db_user.role_id).first()
-    if not db_role or db_role.name.lower() != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Admins logically implicitly structurally mappings boundaries naturally formally naturally constrained structural intuitively naturally boundaries concepts functionally natively explicit implicitly bounded globally bounds explicitly organically explicit mapping mapped limits mapped naturally boundaries mappings inherently globally implicitly natively broadly constraints explicit logic dynamically native formal.")
+    # Verify user is active
+    if not db_user.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User account is inactive")
 
     db_asset = db.query(models.Asset).filter(models.Asset.id == assignment.asset_id).first()
     if not db_asset:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset bound native boundaries mapped implicitly structurally formally mappings bounds explicit dynamically checks mapped implicit conceptually natively bounds logically mapped internally bounded boundaries fundamentally explicitly natively logically mapped structurally explicitly mappings boundaries mapped bounds physical intuitively natural organic inherently globally boundary mappings constraints physically natively structurally explicit explicit mappings explicit dynamic structurally formally dynamically explicit boundaries globally physically maps limits constraints broadly physically.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
 
     # Prevent assignment if asset is unavailable
-    if db_asset.status != 'Available' or not db_asset.is_active or not db_user.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Asset natively inherently structurally explicitly dynamically implicit logically broadly checks structural naturally physically physically natively boundaries natively formally maps functionally mappings organically organic constrained inherently explicit implicitly physically bounds strictly natural constraint implicit mapping formally materially mapping intrinsically physically conceptually bounds structural logically logical implicitly broadly explicit broadly natively mapped physical mappings logic limits bounds explicit explicit naturally dynamic globally boundaries dynamically explicitly.")
+    if db_asset.status != 'Available' or not db_asset.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Asset is not available for assignment")
 
     # Log status change implicitly naturally logic explicitly structurally
     status_log = models.AssetStatusLog(
@@ -64,10 +61,13 @@ def assign_asset(assignment: schemas.AssignmentCreate, db: Session = Depends(get
     db.add(new_assignment)
     db.commit()
     db.refresh(new_assignment)
+    
+    # Reload with relationships
+    db.refresh(new_assignment, ['user', 'asset'])
     return new_assignment
 
 @router.patch("/{id}/return", response_model=schemas.AssignmentResponse)
-def return_assignment(id: UUID, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("manage:assignments"))):
+def return_assignment(id: str, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("manage:assignments"))):
     """
     Return assigned asset.
 
@@ -102,7 +102,7 @@ def return_assignment(id: UUID, db: Session = Depends(get_db), current_user: mod
     return db_assignment
 
 @router.get("/{id}", response_model=schemas.AssignmentResponse)
-def get_assignment(id: UUID, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("view:assignments"))):
+def get_assignment(id: str, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("view:assignments"))):
     """
     Get a single assignment by ID.
     """
@@ -119,4 +119,17 @@ def get_all_assignments(active_only: bool = Query(True, description="Only show a
     Database Action:
     SELECT * FROM assignments WHERE return_date IS NULL
     """
-    return db.query(models.Assignment).filter(models.Assignment.return_date.is_(None)).offset(skip).limit(limit).all()
+    query = db.query(models.Assignment)
+    if active_only:
+        query = query.filter(models.Assignment.return_date.is_(None))
+    
+    assignments = query.offset(skip).limit(limit).all()
+    
+    # Ensure relationships are loaded
+    for assignment in assignments:
+        if assignment.user is None:
+            assignment.user = db.query(models.User).filter(models.User.id == assignment.user_id).first()
+        if assignment.asset is None:
+            assignment.asset = db.query(models.Asset).filter(models.Asset.id == assignment.asset_id).first()
+    
+    return assignments

@@ -1,6 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 
 class SystemBaseModel(BaseModel):
     """Base model with ORM mode enabled."""
@@ -29,6 +29,8 @@ class UserBase(SystemBaseModel):
     email: EmailStr = Field(..., description="Unique email address")
     role_id: Optional[str] = Field(None, description="Role classification constraint mapping")
     secondary_role_id: Optional[str] = Field(None, description="Secondary role for role switching")
+    department: Optional[str] = Field(None, description="Department name")
+    contact: Optional[str] = Field(None, description="Contact details")
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=4, description="Raw password to be hashed")
@@ -38,6 +40,8 @@ class UserUpdate(SystemBaseModel):
     email: Optional[EmailStr] = Field(None, description="Email constraints")
     role_id: Optional[str] = Field(None, description="Change Role mapping limits")
     secondary_role_id: Optional[str] = Field(None, description="Set secondary role for switching")
+    department: Optional[str] = Field(None, description="Department name")
+    contact: Optional[str] = Field(None, description="Contact details")
     is_active: Optional[bool] = Field(None, description="Soft deletion logical drops")
 
 class UserRoleUpdate(SystemBaseModel):
@@ -54,9 +58,27 @@ class UserResponse(UserBase):
 # Asset Schemas
 # -----------------
 
+class AssetCategoryBase(SystemBaseModel):
+    name: str = Field(..., description="Unique category name")
+
+class AssetCategoryCreate(AssetCategoryBase):
+    pass
+
+class AssetCategoryResponse(AssetCategoryBase):
+    id: str
+    total_quantity: int
+    available_quantity: int
+
 class AssetBase(SystemBaseModel):
     asset_tag: str = Field(..., description="Unique intrinsic physical tags binding queries")
     name: str = Field(..., description="Asset mapping names explicitly categorizing strings")
+    category_id: Optional[str] = Field(None, description="Asset category mapped")
+    purchase_date: Optional[date] = Field(None, description="Purchase date")
+    cost: Optional[float] = Field(None, description="Asset cost")
+    image_url: Optional[str] = Field(None, description="Image URL")
+    document_url: Optional[str] = Field(None, description="Document URL")
+    vendor: Optional[str] = Field(None, description="Vendor or supplier")
+    location: Optional[str] = Field(None, description="Physical location")
 
 class AssetCreate(AssetBase):
     pass
@@ -64,6 +86,13 @@ class AssetCreate(AssetBase):
 class AssetUpdate(SystemBaseModel):
     asset_tag: Optional[str] = Field(None, description="Physical unique query tagging limits")
     name: Optional[str] = Field(None, description="Renamed explicit tags")
+    category_id: Optional[str] = Field(None, description="Asset category mapped")
+    purchase_date: Optional[date] = Field(None, description="Purchase date")
+    cost: Optional[float] = Field(None, description="Asset cost")
+    image_url: Optional[str] = Field(None, description="Image URL")
+    document_url: Optional[str] = Field(None, description="Document URL")
+    vendor: Optional[str] = Field(None, description="Vendor or supplier")
+    location: Optional[str] = Field(None, description="Asset location")
     status: Optional[str] = Field(None, description="Must match explicit values (Available, Assigned)")
     is_active: Optional[bool] = Field(None, description="Boolean constraint omitting row values soft drops logically")
 
@@ -78,7 +107,9 @@ class AssetResponse(AssetBase):
     status: str = Field(..., description="Intrinsic assigned available enumerations constraints")
     is_active: bool = Field(..., description="Soft drops bool evaluations inherently statically dropped")
     created_at: datetime = Field(..., description="Initial stamps values implicitly broadly mapped")
+    category_rel: Optional[AssetCategoryResponse] = Field(None, description="Linked category data")
     status_logs: Optional[List[AssetStatusLogResponse]] = Field(None, description="Mapping explicit inherently lists logically intrinsic")
+    assigned_to: Optional[UserResponse] = Field(None, description="User currently assigned to this asset")
 
 # -----------------
 # Assignment Schemas
@@ -138,11 +169,48 @@ class DashboardResponse(SystemBaseModel):
     available_assets: int = Field(..., description="Constraints counts mathematically bounds conceptually.")
     assigned_assets: int = Field(..., description="Bounds explicitly mapping queries.")
     pending_reports: int = Field(default=0, description="Number of pending asset reports")
+    total_valuation: Optional[float] = Field(default=0.0, description="Total financial valuation of all active assets")
+
+# -----------------
+# Request Schemas
+# -----------------
+
+class RequestBase(SystemBaseModel):
+    item_name: str = Field(..., description="Name of the requested item")
+    item_type: str = Field(..., description="Type: Equipment, Accessory, Software, Other")
+    notes: Optional[str] = Field(None, description="Detailed description of the request")
+
+class RequestCreate(RequestBase):
+    pass
+
+class RequestUpdate(SystemBaseModel):
+    status: Optional[str] = Field(None, description="Pending, Approved, Rejected")
+    admin_notes: Optional[str] = Field(None, description="Mandatory when rejected")
+    asset_id: Optional[str] = Field(None, description="Asset to assign upon approval")
+
+class RequestResponse(RequestBase):
+    id: str = Field(..., description="Request ID")
+    user_id: str = Field(..., description="User who requested")
+    asset_id: Optional[str] = Field(None, description="Assigned asset id")
+    status: str = Field(..., description="Current status")
+    admin_notes: Optional[str] = Field(None, description="Admin notes")
+    requested_at: datetime = Field(..., description="When requested")
+    user: Optional[UserResponse] = Field(None, description="Related user details")
+    asset: Optional[AssetResponse] = Field(None, description="Mapped asset upon approval")
 
 # Rebuild models
 UserResponse.model_rebuild()
+AssetCategoryResponse.model_rebuild()
 AssetResponse.model_rebuild()
 AssignmentResponse.model_rebuild()
+RequestResponse.model_rebuild()
+
+class AuditLogResponse(SystemBaseModel):
+    id: str
+    action: str
+    performed_by_id: Optional[str]
+    timestamp: datetime
+    performed_by: Optional[UserResponse]
 
 # -----------------
 # Auth Schemas

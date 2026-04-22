@@ -1,4 +1,3 @@
-from uuid import UUID
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query, HTTPException, status
@@ -45,7 +44,23 @@ def get_all_assets(status_filter: Optional[str] = Query(None, alias="status"), s
     query = db.query(models.Asset).filter(models.Asset.is_active == True)
     if status_filter:
         query = query.filter(models.Asset.status == status_filter)
-    return query.offset(skip).limit(limit).all()
+    
+    assets = query.offset(skip).limit(limit).all()
+    
+    # Populate assigned_to field for each asset
+    for asset in assets:
+        if asset.status == "Assigned":
+            # Find active assignment
+            assignment = db.query(models.Assignment).filter(
+                models.Assignment.asset_id == asset.id,
+                models.Assignment.return_date.is_(None)
+            ).first()
+            if assignment:
+                asset.assigned_to = db.query(models.User).filter(models.User.id == assignment.user_id).first()
+        else:
+            asset.assigned_to = None
+    
+    return assets
 
 @router.get("/search", response_model=List[schemas.AssetResponse])
 def search_assets(q: str, skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("view:assets"))):
@@ -62,7 +77,7 @@ def search_assets(q: str, skip: int = 0, limit: int = 100, db: Session = Depends
     ).offset(skip).limit(limit).all()
 
 @router.get("/{id}", response_model=schemas.AssetResponse)
-def get_asset(id: UUID, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("view:assets"))):
+def get_asset(id: str, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("view:assets"))):
     """
     View specific asset.
 
@@ -75,7 +90,7 @@ def get_asset(id: UUID, db: Session = Depends(get_db), current_user: models.User
     return db_asset
 
 @router.put("/{id}", response_model=schemas.AssetResponse)
-def update_asset(id: UUID, asset_update: schemas.AssetUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("manage:assets"))):
+def update_asset(id: str, asset_update: schemas.AssetUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("manage:assets"))):
     """
     Update asset.
 
@@ -95,7 +110,7 @@ def update_asset(id: UUID, asset_update: schemas.AssetUpdate, db: Session = Depe
     return db_asset
 
 @router.patch("/{id}/deactivate", response_model=schemas.AssetResponse)
-def deactivate_asset(id: UUID, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("manage:assets"))):
+def deactivate_asset(id: str, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("manage:assets"))):
     """
     Deactivate asset (Soft Delete).
 
@@ -112,7 +127,7 @@ def deactivate_asset(id: UUID, db: Session = Depends(get_db), current_user: mode
     return db_asset
 
 @router.get("/{id}/current-holder", response_model=schemas.AssignmentResponse)
-def get_asset_current_holder(id: UUID, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("view:assets"))):
+def get_asset_current_holder(id: str, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("view:assets"))):
     """
     View current asset holder.
 
@@ -134,7 +149,7 @@ def get_asset_current_holder(id: UUID, db: Session = Depends(get_db), current_us
     return db_assignment
 
 @router.get("/{id}/history", response_model=List[schemas.AssignmentResponse])
-def get_asset_status_history(id: UUID, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("view:assets"))):
+def get_asset_status_history(id: str, db: Session = Depends(get_db), current_user: models.User = Depends(RequirePrivilege("view:assets"))):
     """
     View assignment history by asset.
 

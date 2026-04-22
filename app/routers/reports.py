@@ -1,4 +1,3 @@
-from uuid import UUID
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -34,6 +33,18 @@ def create_report(
     )
     
     db.add(new_report)
+    
+    # Update asset status to indicate it has a reported issue
+    if db_asset.status != 'Issue Reported':
+        db_asset.status = 'Issue Reported'
+        # Log the status change
+        status_log = models.AssetStatusLog(
+            asset_id=db_asset.id,
+            old_status=db_asset.status,
+            new_status="Issue Reported"
+        )
+        db.add(status_log)
+    
     db.commit()
     db.refresh(new_report)
     
@@ -77,7 +88,7 @@ def get_all_reports(
 
 @router.get("/{id}", response_model=schemas.AssetReportResponse)
 def get_report(
-    id: UUID,
+    id: str,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(RequirePrivilege("view:reports"))
 ):
@@ -92,7 +103,7 @@ def get_report(
 
 @router.put("/{id}", response_model=schemas.AssetReportResponse)
 def update_report(
-    id: UUID,
+    id: str,
     report_update: schemas.AssetReportUpdate,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(RequirePrivilege("manage:reports"))

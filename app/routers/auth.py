@@ -36,9 +36,9 @@ def login_for_access_token(db: Session = Depends(get_db), form_data: OAuth2Passw
     # Get secondary role info if exists
     has_secondary_role = False
     secondary_role_name = None
-    if user.secondary_role and user.secondary_role.id != user.role_id:
+    if user.secondary_role_rel and user.secondary_role_rel.id != user.role_id:
         has_secondary_role = True
-        secondary_role_name = user.secondary_role.name
+        secondary_role_name = user.secondary_role_rel.name
     
     access_token = auth.create_access_token(
         data={
