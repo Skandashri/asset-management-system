@@ -13,48 +13,105 @@ async def lifespan(app: FastAPI):
         models.Base.metadata.create_all(bind=engine)
         print("Database tables structurally bound and validated natively.")
         
-        # Seed initial roles and users - commented out for testing
-        # from app.database import SessionLocal
-        # from app.auth import get_password_hash
-        # db = SessionLocal()
-        # try:
-        #     admin_role = db.query(models.Role).filter(models.Role.name == "Admin").first()
-        #     if not admin_role:
-        #         admin_role = models.Role(name="Admin", permissions=["all"])
-        #         db.add(admin_role)
-        #         db.commit()
-        #         db.refresh(admin_role)
+        # Seed initial roles and users on startup
+        from app.database import SessionLocal
+        from app.auth import get_password_hash
+        db = SessionLocal()
+        try:
+            # Create Super Admin role if it doesn't exist
+            super_admin_role = db.query(models.Role).filter(models.Role.name == "Super Admin").first()
+            if not super_admin_role:
+                print("Creating Super Admin role...")
+                super_admin_role = models.Role(
+                    name="Super Admin",
+                    permissions=["all"]
+                )
+                db.add(super_admin_role)
+                db.commit()
+                db.refresh(super_admin_role)
+                print(f"✅ Created Super Admin role")
+            
+            # Create Admin role if it doesn't exist
+            admin_role = db.query(models.Role).filter(models.Role.name == "Admin").first()
+            if not admin_role:
+                print("Creating Admin role...")
+                admin_role = models.Role(
+                    name="Admin",
+                    permissions=["all"]
+                )
+                db.add(admin_role)
+                db.commit()
+                db.refresh(admin_role)
+                print(f"✅ Created Admin role")
                 
-        #     employee_role = db.query(models.Role).filter(models.Role.name == "Employee").first()
-        #     if not employee_role:
-        #         employee_role = models.Role(name="Employee", permissions=["view:assets", "view:assignments", "view:dashboard"])
-        #         db.add(employee_role)
-        #         db.commit()
-        #         db.refresh(employee_role)
+            # Create Employee role if it doesn't exist
+            employee_role = db.query(models.Role).filter(models.Role.name == "Employee").first()
+            if not employee_role:
+                print("Creating Employee role...")
+                employee_role = models.Role(
+                    name="Employee",
+                    permissions=["view:assets", "view:assignments", "view:dashboard", "create:reports", "view:my_reports"]
+                )
+                db.add(employee_role)
+                db.commit()
+                db.refresh(employee_role)
+                print(f"✅ Created Employee role")
                 
-        #     admin_user = db.query(models.User).filter(models.User.email == "admin@optiasset.com").first()
-        #     if not admin_user:
-        #         admin_user = models.User(
-        #             name="OptiAsset Admin",
-        #             email="admin@optiasset.com",
-        #             hashed_password=get_password_hash("admin123"),
-        #             role_id=admin_role.id
-        #         )
-        #         db.add(admin_user)
-        #         db.commit()
+            # Create Super Admin user if it doesn't exist
+            superadmin_user = db.query(models.User).filter(models.User.email == "superadmin@optiasset.com").first()
+            if not superadmin_user:
+                print("Creating Super Admin user...")
+                superadmin_user = models.User(
+                    name="Super Administrator",
+                    email="superadmin@optiasset.com",
+                    hashed_password=get_password_hash("superadmin123"),
+                    role_id=super_admin_role.id,
+                    is_active=True
+                )
+                db.add(superadmin_user)
+                db.commit()
+                print("✅ Created Super Admin user: superadmin@optiasset.com / superadmin123")
+            
+            # Create Admin user if it doesn't exist
+            admin_user = db.query(models.User).filter(models.User.email == "admin@optiasset.com").first()
+            if not admin_user:
+                print("Creating Admin user...")
+                admin_user = models.User(
+                    name="OptiAsset Admin",
+                    email="admin@optiasset.com",
+                    hashed_password=get_password_hash("admin123"),
+                    role_id=admin_role.id,
+                    is_active=True
+                )
+                db.add(admin_user)
+                db.commit()
+                print("✅ Created Admin user: admin@optiasset.com / admin123")
                 
-        #     employee_user = db.query(models.User).filter(models.User.email == "employee@optiasset.com").first()
-        #     if not employee_user:
-        #         employee_user = models.User(
-        #             name="Standard Employee",
-        #             email="employee@optiasset.com",
-        #             hashed_password=get_password_hash("employee123"),
-        #             role_id=employee_role.id
-        #         )
-        #         db.add(employee_user)
-        #         db.commit()
-        # finally:
-        #     db.close()
+            # Create Employee user if it doesn't exist
+            employee_user = db.query(models.User).filter(models.User.email == "employee@optiasset.com").first()
+            if not employee_user:
+                print("Creating Employee user...")
+                employee_user = models.User(
+                    name="Standard Employee",
+                    email="employee@optiasset.com",
+                    hashed_password=get_password_hash("employee123"),
+                    role_id=employee_role.id,
+                    is_active=True
+                )
+                db.add(employee_user)
+                db.commit()
+                print("✅ Created Employee user: employee@optiasset.com / employee123")
+                
+            print("\n🎉 Default users are ready!")
+            print("📝 Login Credentials:")
+            print("   Super Admin: superadmin@optiasset.com / superadmin123")
+            print("   Admin: admin@optiasset.com / admin123")
+            print("   Employee: employee@optiasset.com / employee123")
+        except Exception as e:
+            print(f"Warning: Could not seed initial users. Error: {e}")
+            db.rollback()
+        finally:
+            db.close()
             
     except Exception as e:
         print(f"Warning: Could not connect to database on startup. Error: {e}")
@@ -86,7 +143,7 @@ app.add_middleware(
         "http://localhost:3000", 
         "http://127.0.0.1:3000", 
         "https://optiasset.vercel.app",
-        "https://asset-management-system-1-cm2v.onrender.com",  # Allow Render backend
+        "https://asset-management-system-1-cm2v.onrender.com",
         "*"  # Allow all origins for development (restrict in production)
     ],
     allow_credentials=True,

@@ -19,6 +19,7 @@ build/
 # Database
 *.db
 *.sqlite3
+*.sql
 
 # IDE
 .vscode/
@@ -41,3 +42,14 @@ test_results*.txt
 # Temporary files
 *.tmp
 *.bak
+
+# Old/duplicate code
+opti_asset/
+app.py
+
+# Batch files
+*.bat
+
+# Documentation (temporary)
+DEPLOYMENT_FIX.md
+*_FIX.md
