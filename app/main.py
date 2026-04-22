@@ -70,7 +70,26 @@ async def lifespan(app: FastAPI):
                 )
                 db.add(superadmin_user)
                 db.commit()
-                print("✅ Created Super Admin user: superadmin@optiasset.com / superadmin123")
+                print(f"✅ Created Super Admin user with role_id: {super_admin_role.id}")
+                print("   Email: superadmin@optiasset.com")
+                print("   Password: superadmin123")
+            else:
+                # Ensure Super Admin has the correct role and is active
+                print(f"Super Admin user exists, verifying role...")
+                print(f"   Current role_id: {superadmin_user.role_id}")
+                print(f"   Expected role_id: {super_admin_role.id}")
+                if superadmin_user.role_id != super_admin_role.id:
+                    print("   Updating Super Admin role...")
+                    superadmin_user.role_id = super_admin_role.id
+                    db.commit()
+                if not superadmin_user.is_active:
+                    print("   Reactivating Super Admin account...")
+                    superadmin_user.is_active = True
+                    db.commit()
+                # Update password to ensure it's correct
+                superadmin_user.hashed_password = get_password_hash("superadmin123")
+                db.commit()
+                print("✅ Super Admin user verified and updated")
             
             # Create Admin user if it doesn't exist
             admin_user = db.query(models.User).filter(models.User.email == "admin@optiasset.com").first()
