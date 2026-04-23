@@ -24,6 +24,12 @@ def get_dashboard_metrics(db: Session = Depends(get_db), current_user: models.Us
     available_assets = db.query(models.Asset).filter(models.Asset.status == 'Available').count()
     total_employees = db.query(models.User).filter(models.User.is_active == True).count()
     
+    # Calculate total asset value (sum of all asset costs)
+    total_asset_value = db.query(models.Asset).filter(
+        models.Asset.is_active == True,
+        models.Asset.cost.isnot(None)
+    ).with_entities(db.func.coalesce(db.func.sum(models.Asset.cost), 0)).scalar()
+    
     # Count pending reports (for Admin/Super Admin)
     pending_reports = 0
     if current_user.role and current_user.role.name in ["Admin", "Super Admin"]:
@@ -32,6 +38,9 @@ def get_dashboard_metrics(db: Session = Depends(get_db), current_user: models.Us
         ).count()
     
     # For employees, get their specific stats
+    my_assigned = 0
+    my_pending_requests = 0
+    my_reports = 0
     if current_user.role and current_user.role.name.lower() == "employee":
         # Get employee's assigned assets count
         my_assigned = db.query(models.Assignment).filter(
@@ -55,7 +64,11 @@ def get_dashboard_metrics(db: Session = Depends(get_db), current_user: models.Us
         assigned_assets=assigned_assets,
         available_assets=available_assets,
         total_users=total_employees,
-        pending_reports=pending_reports
+        pending_reports=pending_reports,
+        total_asset_value=total_asset_value,
+        my_assigned_assets=my_assigned,
+        my_pending_requests=my_pending_requests,
+        my_reports=my_reports
     )
 
 @router.get("/total-assets", response_model=int)
