@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app import schemas, models
 from app.dependencies import get_db, RequirePrivilege, get_current_user
@@ -28,14 +29,14 @@ def get_dashboard_metrics(db: Session = Depends(get_db), current_user: models.Us
     total_asset_value = db.query(models.Asset).filter(
         models.Asset.is_active == True,
         models.Asset.cost.isnot(None)
-    ).with_entities(db.func.coalesce(db.func.sum(models.Asset.cost), 0)).scalar()
+    ).with_entities(func.coalesce(func.sum(models.Asset.cost), 0)).scalar()
     
     # Count pending reports and requests (for Admin/Super Admin)
     pending_reports = 0
     pending_requests = 0
     if current_user.role and current_user.role.name in ["Admin", "Super Admin"]:
         pending_reports = db.query(models.AssetReport).filter(
-            models.AssetReport.status == "Pending"
+            models.AssetReport.status.in_(["Pending", "Under Review"])
         ).count()
         pending_requests = db.query(models.Request).filter(
             models.Request.status == "Pending"
