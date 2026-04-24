@@ -36,11 +36,12 @@ def create_report(
     
     # Update asset status to indicate it has a reported issue
     if db_asset.status != 'Issue Reported':
+        old_status = db_asset.status
         db_asset.status = 'Issue Reported'
         # Log the status change
         status_log = models.AssetStatusLog(
             asset_id=db_asset.id,
-            old_status=db_asset.status,
+            old_status=old_status,
             new_status="Issue Reported"
         )
         db.add(status_log)

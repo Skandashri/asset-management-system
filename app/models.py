@@ -99,6 +99,13 @@ class Asset(Base):
     assignments = relationship("Assignment", back_populates="asset", cascade="all, delete-orphan")
     status_logs = relationship("AssetStatusLog", back_populates="asset", cascade="all, delete-orphan")
 
+    @property
+    def assigned_to(self):
+        for assignment in self.assignments:
+            if assignment.return_date is None:
+                return assignment.user
+        return None
+
 class Assignment(Base):
     """
     Tracks assignments mapping Users securely to Assets.
