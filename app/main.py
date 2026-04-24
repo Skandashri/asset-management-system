@@ -17,17 +17,25 @@ async def lifespan(app: FastAPI):
         # Add missing columns to users table if they don't exist (for production Supabase)
         try:
             with engine.connect() as conn:
-                conn.execute(text("ALTER TABLE users ADD COLUMN department VARCHAR;"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS secondary_role_id VARCHAR;"))
+                # Note: Constraints added directly in ADD COLUMN might not be fully supported by all dialects, keeping it simple as VARCHAR
                 conn.commit()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Failed to add secondary_role_id column: {e}")
             
         try:
             with engine.connect() as conn:
-                conn.execute(text("ALTER TABLE users ADD COLUMN contact VARCHAR;"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR;"))
                 conn.commit()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Failed to add department column: {e}")
+            
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS contact VARCHAR;"))
+                conn.commit()
+        except Exception as e:
+            print(f"Failed to add contact column: {e}")
         
         # Seed initial roles and users on startup
         from app.database import SessionLocal
