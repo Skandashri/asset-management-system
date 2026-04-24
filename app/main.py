@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from sqlalchemy import text
 
 from app import models
 from app.database import engine
@@ -12,6 +13,21 @@ async def lifespan(app: FastAPI):
     try:
         models.Base.metadata.create_all(bind=engine)
         print("Database tables structurally bound and validated natively.")
+        
+        # Add missing columns to users table if they don't exist (for production Supabase)
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN department VARCHAR;"))
+                conn.commit()
+        except Exception:
+            pass
+            
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN contact VARCHAR;"))
+                conn.commit()
+        except Exception:
+            pass
         
         # Seed initial roles and users on startup
         from app.database import SessionLocal
