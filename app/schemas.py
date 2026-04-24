@@ -169,7 +169,11 @@ class DashboardResponse(SystemBaseModel):
     available_assets: int = Field(..., description="Constraints counts mathematically bounds conceptually.")
     assigned_assets: int = Field(..., description="Bounds explicitly mapping queries.")
     pending_reports: int = Field(default=0, description="Number of pending asset reports")
-    total_valuation: Optional[float] = Field(default=0.0, description="Total financial valuation of all active assets")
+    total_asset_value: Optional[float] = Field(default=0.0, description="Total financial valuation of all active assets")
+    my_assigned_assets: Optional[int] = Field(default=0, description="Employee assigned assets count")
+    my_pending_requests: Optional[int] = Field(default=0, description="Employee pending requests count")
+    my_reports: Optional[int] = Field(default=0, description="Employee reported issues count")
+    pending_requests: Optional[int] = Field(default=0, description="Admin pending requests count")
 
 # -----------------
 # Request Schemas

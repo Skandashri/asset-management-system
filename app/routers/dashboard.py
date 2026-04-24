@@ -30,11 +30,15 @@ def get_dashboard_metrics(db: Session = Depends(get_db), current_user: models.Us
         models.Asset.cost.isnot(None)
     ).with_entities(db.func.coalesce(db.func.sum(models.Asset.cost), 0)).scalar()
     
-    # Count pending reports (for Admin/Super Admin)
+    # Count pending reports and requests (for Admin/Super Admin)
     pending_reports = 0
+    pending_requests = 0
     if current_user.role and current_user.role.name in ["Admin", "Super Admin"]:
         pending_reports = db.query(models.AssetReport).filter(
             models.AssetReport.status == "Pending"
+        ).count()
+        pending_requests = db.query(models.Request).filter(
+            models.Request.status == "Pending"
         ).count()
     
     # For employees, get their specific stats
@@ -68,7 +72,8 @@ def get_dashboard_metrics(db: Session = Depends(get_db), current_user: models.Us
         total_asset_value=total_asset_value,
         my_assigned_assets=my_assigned,
         my_pending_requests=my_pending_requests,
-        my_reports=my_reports
+        my_reports=my_reports,
+        pending_requests=pending_requests
     )
 
 @router.get("/total-assets", response_model=int)

@@ -47,19 +47,6 @@ def get_all_assets(status_filter: Optional[str] = Query(None, alias="status"), s
     
     assets = query.offset(skip).limit(limit).all()
     
-    # Populate assigned_to field for each asset
-    for asset in assets:
-        if asset.status == "Assigned":
-            # Find active assignment
-            assignment = db.query(models.Assignment).filter(
-                models.Assignment.asset_id == asset.id,
-                models.Assignment.return_date.is_(None)
-            ).first()
-            if assignment:
-                asset.assigned_to = db.query(models.User).filter(models.User.id == assignment.user_id).first()
-        else:
-            asset.assigned_to = None
-    
     return assets
 
 @router.get("/search", response_model=List[schemas.AssetResponse])
